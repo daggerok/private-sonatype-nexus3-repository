@@ -1,0 +1,18 @@
+plugins {
+  id "idea"
+  id "eclipse"
+}
+
+def prev = "clean"
+
+["clean", "assemble", "test", "build", "install", "deploy"].each { taskName ->
+  tasks.create(taskName) { task ->
+    gradle.includedBuilds.each { build ->
+      task.dependsOn gradle.includedBuild(build.name).task(":$taskName")
+
+      if (taskName == prev) return
+      task.shouldRunAfter ":$prev"
+      prev = taskName
+    }
+  }
+}

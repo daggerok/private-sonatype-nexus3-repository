@@ -1,0 +1,29 @@
+**/.DS_Store
+**/gradlew*
+**/mvnw*
+**/.gradle
+**/.mvn
+**/gradle/
+**/build/
+**/target/
+
+### IntelliJ IDEA ###
+**/.idea
+**/*.iws
+**/*.iml
+**/*.ipr
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+
+### NetBeans ###
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/

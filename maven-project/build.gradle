@@ -1,0 +1,25 @@
+def mappings = [
+    "clean"   : "clean",
+    "test"    : "test",
+    "assemble": "compile",
+    "build"   : "package",
+    "install" : "install",
+    "deploy" : "deploy"
+]
+
+mappings.each { gradleName, mavenName ->
+  tasks.create(name: gradleName, type: Exec) {
+    workingDir projectDir
+    executable "bash"
+    args "-c", "mvn -f $projectDir/pom.xml -s $projectDir/settings.xml $mavenName"
+  }
+}
+
+def prev = "clean"
+
+mappings.each { taskName, _ ->
+  if (tasks == prev) return
+  Task task = tasks.findByPath(":$taskName")
+  task.shouldRunAfter ":$prev"
+  prev = taskName
+}

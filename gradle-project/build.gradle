@@ -1,0 +1,106 @@
+import org.gradle.api.publish.maven.MavenPublication
+
+buildscript {
+  ext {
+    springBootVersion = "1.5.4.RELEASE"
+  }
+}
+
+plugins {
+  id "java"
+  id "maven"
+  id "maven-publish"
+  id "org.springframework.boot" version "1.5.4.RELEASE"
+  id "io.spring.dependency-management" version "1.0.3.RELEASE"
+}
+
+group "daggerok"
+version = "0.0.1"
+sourceCompatibility = 1.8
+
+repositories {
+  maven {
+    url "http://localhost:8081/repository/group-maven-repo/"
+    name "central"
+    credentials {
+      username "admin"
+      password "admin123"
+    }
+  }
+}
+
+task sourceJar(type: Jar) {
+  from sourceSets.main.allJava
+}
+
+publishing {
+
+  repositories {
+    maven {
+      url "http://localhost:8081/repository/hosted-maven-snapshots/"
+      name "snapshots"
+      credentials {
+        username "admin"
+        password "admin123"
+      }
+    }
+    maven {
+      url "http://localhost:8081/repository/hosted-maven-releases/"
+      name "releases"
+      credentials {
+        username "admin"
+        password "admin123"
+      }
+    }
+  }
+
+  publications {
+    snapshotJar(MavenPublication) {
+      artifactId "gradle-project"
+      groupId group
+      version "$version-SNAPSHOT"
+      artifact file(jar.archivePath)
+      ext.repo = "snapshots"
+    }
+    releaseJar(MavenPublication) {
+      artifactId "gradle-project"
+      groupId group
+      version "$version-RELEASE"
+      artifact file(jar.archivePath)
+      ext.repo = "releases"
+    }
+  }
+}
+
+task deploySnapshot {
+  dependsOn ":build",
+            ":generatePomFileForSnapshotJarPublication",
+            ":publishSnapshotJarPublicationToSnapshotsRepository"
+}
+
+task deployRelease {
+  dependsOn ":assemble",
+            ":generatePomFileForReleaseJarPublication",
+            ":publishReleaseJarPublicationToReleasesRepository"
+}
+
+task deploy(dependsOn: [deploySnapshot/*, deployRelease*/])
+
+dependencies {
+  compile("org.springframework.boot:spring-boot-starter-web")
+  compileOnly("org.projectlombok:lombok")
+  testCompile("org.springframework.boot:spring-boot-starter-test")
+}
+
+// Important: with `executable = true` publishing will not work because build archive is not not jar, but sh:
+// 2017-06-11 23:42:09,633+0000 WARN  [qtp831146325-326] admin org.sonatype.nexus.repository.view.handlers.ExceptionHandler - Invalid content: PUT /daggerok/gradle-project/0.0.1-SNAPSHOT/gradle-project-0.0.1-20170611.234209-3.jar: org.sonatype.nexus.repository.InvalidContentException: Detected content type [application/x-sh], but expected [application/java-archive]: daggerok/gradle-project/0.0.1-SNAPSHOT/gradle-project-0.0.1-20170611.234209-3.jar
+springBoot {
+  executable = false
+}
+
+dependencyManagement {
+  imports {
+    mavenBom "org.springframework.boot:spring-boot-starter-parent:$springBootVersion"
+    mavenBom "org.springframework.boot:spring-boot-dependencies:$springBootVersion"
+  }
+}

@@ -1,0 +1,193 @@
+= install nexus3
+
+[source,bash]
+## clean:
+# docker rm -f -v $(docker ps -a|grep -v CONTAINER|awk '{print $1}')
+# docker volume rm my-nexus-data | true
+docker volume create my-nexus-data
+docker rm -f $(docker ps -a|grep -v CONTAINER|awk '{print $1}')
+docker run -d --name my-nexus \
+  -v my-nexus-data:/nexus-data \
+  -p 8081:8081 -p 8082:8082 -p 8083:8083 \
+  sonatype/nexus3:3.0.0
+
+= create maven repos
+
+== create snapshot repo
+
+. open http://localhost:8081/
+. login as admin / admin123
+. create maven hosted repo
+. name: hosted-maven-snapshots
+. version policy: Snapshot
+. blob store: default
+. deployment policy: Allow redeploy
+. click create repository
+
+== create release repo
+
+. create maven hosted repo
+. name: hosted-maven-releases
+. version policy: Release
+. blob store: default
+. deployment policy: Disable redeploy
+. click create repository
+
+== proxy to maven central repo
+
+. create maven proxy repo
+. name: proxy-maven-central
+. version policy: Release
+. remote storage: https://repo.maven.apache.org/maven2/
+. blob store: default
+
+== group repo
+
+. create maven group repo
+. name: group-maven-repo
+. blob store: default
+. member repositories:
+.. proxy-maven-central
+.. hosted-maven-releases
+.. hosted-maven-snapshots
+
+= test usage
+
+== maven project
+
+=== create
+
+[source,bash]
+http https://start.spring.io/starter.zip \
+  groupId=daggerok \
+  artifactId=maven-app \
+  name=maven-app \
+  applicationName=MavenApp \
+  packageName=daggerok \
+  type=maven-project \
+  dependencies=web,lombok \
+  -d
+unzip demo.zip -d maven-project
+rm -rf demo.zip
+
+=== config
+
+see maven-project/settings.xml
+and maven-project/pom.xml
+
+=== build using private repo
+
+[source,bash]
+----
+cd maven-project/
+mvn -s settings.xml package
+...
+Downloaded: http://localhost:8081/repository/group-maven-repo/com/google/guava/guava/18.0/guava-18.0.jar (0 B at 0 B/s)
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 44.158 s
+[INFO] Finished at: 2017-06-12T01:22:24+03:00
+[INFO] Final Memory: 31M/330M
+[INFO] ------------------------------------------------------------------------
+----
+
+=== deploy remotely
+
+[source,bash]
+----
+mvn -s settings.xml install deploy
+Uploading: http://localhost:8081/repository/hosted-maven-snapshots/com/example/demo/maven-metadata.xml
+Uploaded: http://localhost:8081/repository/hosted-maven-snapshots/com/example/demo/maven-metadata.xml (275 B at 10 kB/s)
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 13.813 s
+[INFO] Finished at: 2017-06-12T01:27:21+03:00
+[INFO] Final Memory: 24M/303M
+[INFO] ------------------------------------------------------------------------
+----
+
+=== verify
+
+[source,bash]
+open http://localhost:8081/#browse/browse/components:hosted-maven-snapshots
+
+== gradle project
+
+=== create
+
+[source,bash]
+http https://start.spring.io/starter.zip \
+  groupId=daggerok \
+  artifactId=gradle-app \
+  name=gradle-app \
+  applicationName=GradleApp \
+  packageName=daggerok \
+  type=gradle-project \
+  dependencies=web,lombok \
+  -d
+unzip demo.zip -d gradle-project
+rm -rf demo.zip
+
+=== config
+
+see gradle-project/build.gradle publishing closure
+
+
+=== build using private repo
+
+[source,bash]
+----
+cd gradle-project/
+gradle build
+...
+:build
+
+BUILD SUCCESSFUL
+----
+
+=== deploy remotely
+
+[source,bash]
+----
+gradle deploy
+...
+Upload http://localhost:8081/repository/hosted-maven-snapshots/daggerok/gradle-project/maven-metadata.xml.md5
+:deploySnapshot
+:deploy
+
+BUILD SUCCESSFUL
+----
+
+=== deploy release
+
+[source,bash]
+----
+gradle deployRelease
+...
+Upload http://localhost:8081/repository/hosted-maven-releases/daggerok/gradle-project/maven-metadata.xml.md5
+:deployRelease
+
+BUILD SUCCESSFUL
+----
+
+ps: second release deploy with no changing will fail (because of deployment policy: Disable redeploy):
+
+[source,bash]
+----
+2017-06-11 23:55:14,693+0000 WARN  [qtp831146325-327] admin org.sonatype.nexus.repository.view.handlers.ExceptionHandler - Illegal operation: PUT /daggerok/gradle-project/0.0.1-RELEASE/gradle-project-0.0.1-RELEASE.jar: org.sonatype.nexus.repository.IllegalOperationException: Repository does not allow updating assets: hosted-maven-releases
+2017-06-11 23:55:14,705+0000 WARN  [qtp831146325-78] admin org.sonatype.nexus.repository.view.handlers.ExceptionHandler - Illegal operation: PUT /daggerok/gradle-project/0.0.1-RELEASE/gradle-project-0.0.1-RELEASE.pom: org.sonatype.nexus.repository.IllegalOperationException: Repository does not allow updating assets: hosted-maven-releases
+----
+
+=== verify
+
+[source,bash]
+open http://localhost:8081/#browse/browse/components:hosted-maven-snapshots
+
+== using gradle include builds
+
+[source,bash]
+gradle clean deploy
+cd gradle-project
+gradle deployRelease
